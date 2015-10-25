@@ -3,80 +3,93 @@ __author__ = 'hai'
 import argparse
 import os
 import zipfile
-import traceback
-from openpyxl import load_workbook
+import traceback, sys
+from glob import glob
+import re
+import subprocess
 
-parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('--path',default='C:\\Users\\hai\\Downloads\\Hw1\\Hw1',help='path to directory to be unzip')
+parser = argparse.ArgumentParser(description='Unzip and Compile Java Files.')
+parser.add_argument('--path',default='./Hw1',help='path to directory to be unzip')
 args = parser.parse_args()
 
 class unzip:
     def __init__(self, path, student_file):
+        self.counter = 0
+        self.total_success = 0;
         self.path = path
         self.student_file = student_file
-        #self.unzip()
-        self.view_txt()
+        self.total_fail = []
+        self.unzip()
+        self.print_()
+
 
     def unzip(self):
-        total_success = 0
-        total_fail = []
+        '''
+        unzip file and compile
+        '''
+        found_jar = False
         for i in os.listdir(self.path):
             tmp_fold = os.path.join(self.path,i)
             if os.path.isdir(tmp_fold):
                 for j in os.listdir(tmp_fold):
                     tmp_file = os.path.join(tmp_fold, j)
+                    print(tmp_file)
                     if os.path.isfile(tmp_file) and tmp_file.endswith('.zip'):
-                        print("found zip file {0}".format(tmp_file))
                         try:
                             with zipfile.ZipFile(tmp_file, 'r') as z:
                                 z.extractall(tmp_fold)
-                                total_success = total_success + 1
+                                tmp_path = os.getcwd()
+                                p = os.path.abspath(tmp_fold)
+                                self.compile(p)
                         except:
-                            print("Failed to unzip {0}".format(tmp_file))
-                            total_fail.append(tmp_file)
+                            traceback.print_exc()
+                            print("Failed to unzip/compile {0}".format(tmp_file))
+                            self.total_fail.append(tmp_file)
 
+                        finally:
+                            os.chdir(tmp_path)
 
+    def print_(self):
+        '''
+        print summary
+        '''
         print("\nSummary:\n")
-        print("Total zip files found: {0}".format(total_success + len(total_fail)))
-        print("Success: {0}\n".format(total_success))
-        print("Failed: {0}\n".format(len(total_fail)))
-        for i in total_fail:
+        #print("Total zip files found: {0}".format(self.total_success + len(self.total_fail)))
+        print("Success: {0}\n".format(self.total_success))
+        print("Failed: {0}\n".format(len(self.total_fail)))
+        for i in self.total_fail:
             print("{0}\n".format(i))
 
-    def view_txt(self):
-        for i in os.listdir(self.path):
-            tmp_fold = os.path.join(self.path,i)
-            if os.path.isdir(tmp_fold):
-                 for j in os.listdir(tmp_fold):
-                      tmp_file = os.path.join(tmp_fold, j)
-                      if os.path.isfile(tmp_file) and tmp_file.endswith(".txt") and "output" in tmp_file.lower():
-                          try:
-                            print("Reading file from user {0}".format(i))
-                            file = open(tmp_file, "r")
-                            #print(file.read())
-                            #print('\n')
-                            self.grade(i)
-                          except:
-                              print("Error while reading file from user {0}".format(j))
-                              print(traceback.format_exc())
 
+    def compile(self, path):
+        '''
+        compile java files
+        '''
+        os.chdir(path)
+        cur_dir = os.getcwd()
+        if not os.listdir(path):
+            return False
 
-    def grade(self, id):
-        wb = load_workbook(filename = 'CS157Grade.xlsx')
-        first_sheet = wb.get_sheet_names()[0]
-        worksheet = wb.get_sheet_by_name(first_sheet)
-        new_column = worksheet.max_row + 1
-        for row in worksheet.iter_rows():
-            for cell in row:
-                if cell.column == 3:
-                    print(cell.value)
-                    if cell.value in id:
-                        print("found {0} in row {1}".format(id, cell.row))
-                        #grade = input("Enter your grade for student {0}".format(id))
-                        #worksheet.cell(row = cell.row, column = new_column).value=-10000
-        wb.save("testexcel.xlsx")
+        found_jar = False
+        for k in os.listdir(cur_dir):
+            k_file = os.path.abspath(k)
+            #dirty way to handle ._ MAC folder
+            if k_file.endswith('.java') and not '._' in k_file:
+                found_jar = True
+                break
 
+        if found_jar is True:
+            subprocess.check_output("javac *.java", shell=True)
+            self.total_success = self.total_success + 1
+            return True
 
+        else:
+            for k in os.listdir(cur_dir):
+                j = os.path.join(cur_dir,k)
+                if os.path.isdir(j):
+                    if self.compile(j):
+                        return True
+        return False
 
 
 if __name__ == "__main__":
